@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests as browser_requests
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from .cache import RowCache
@@ -467,9 +468,9 @@ def parse_search_page(html: str) -> list[dict[str, str]]:
     return products
 
 
-def _session() -> requests.Session:
+def _session() -> browser_requests.Session:
     if not hasattr(_thread_local, "session"):
-        session = requests.Session()
+        session = browser_requests.Session()
         session.headers.update(HEADERS)
         _thread_local.session = session
     return _thread_local.session
@@ -480,12 +481,12 @@ def fetch(url: str, retries: int = 3, timeout: int = 30) -> str:
     last_status: int | None = None
     for attempt in range(retries):
         try:
-            response = _session().get(url, timeout=timeout)
+            response = _session().get(url, timeout=timeout, impersonate="chrome")
             response.raise_for_status()
             if len(response.text) < 10_000:
                 raise RuntimeError(f"unexpected short response ({len(response.text)} bytes)")
             return response.text
-        except (requests.RequestException, RuntimeError) as error:
+        except (requests.RequestException, browser_requests.RequestsError, RuntimeError) as error:
             last_error = error
             if attempt + 1 < retries:
                 response = getattr(error, "response", None)
@@ -501,8 +502,9 @@ def fetch(url: str, retries: int = 3, timeout: int = 30) -> str:
     if last_status in {403, 429}:
         raise RateLimitError(
             f"Flipkart is still returning HTTP {last_status} after cooldown retries. "
-            "The run was stopped to avoid a 50-page failure loop. Wait, then rerun; "
-            "recent completed product rows will be reused from cache."
+            "The run was stopped to avoid a failure loop. Confirm that flipkart.com "
+            "opens in a normal browser on this network, wait for the temporary block "
+            "to expire, then rerun; completed rows will be reused from cache."
         )
     raise RuntimeError(f"Could not fetch {url}: {last_error}")
 

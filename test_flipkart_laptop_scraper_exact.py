@@ -254,6 +254,30 @@ class ScraperParsingTests(unittest.TestCase):
         self.assertEqual(result, "x" * 10_001)
         self.assertEqual(waits, [12.0])
 
+    def test_fetch_uses_a_browser_tls_fingerprint(self):
+        class Response:
+            status_code = 200
+            headers = {}
+            text = "x" * 10_001
+
+            @staticmethod
+            def raise_for_status():
+                return None
+
+        class Session:
+            def __init__(self):
+                self.request_options = None
+
+            def get(self, *_args, **kwargs):
+                self.request_options = kwargs
+                return Response()
+
+        session = Session()
+        with patch("flipkart_scraper.core._session", return_value=session):
+            self.scraper.fetch("https://example.test")
+
+        self.assertEqual(session.request_options["impersonate"], "chrome")
+
     def test_scrape_products_reuses_cached_row_without_network_request(self):
         from flipkart_scraper import core
         from flipkart_scraper.cache import RowCache

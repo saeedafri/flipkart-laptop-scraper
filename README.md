@@ -42,6 +42,13 @@ python3 -m unittest -v test_flipkart_laptop_scraper_exact.py
 See [docs/FLIPKART_LAPTOP_SCRAPER_FIX_GUIDE.md](docs/FLIPKART_LAPTOP_SCRAPER_FIX_GUIDE.md)
 for the field-by-field root-cause and repair explanation.
 
+For complete architecture, boxed execution diagrams, internal data contracts,
+failure paths, and every function, read
+[docs/TECHNICAL_ARCHITECTURE_AND_EXECUTION_FLOW.md](docs/TECHNICAL_ARCHITECTURE_AND_EXECUTION_FLOW.md).
+
+Editable diagrams are available in [`diagrams/`](diagrams/). Each flow includes
+Excalidraw, Mermaid, SVG, and PNG formats.
+
 ## GitHub
 
 This directory is an independent Git repository. Generated data and local

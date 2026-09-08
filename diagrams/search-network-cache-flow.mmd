@@ -1,0 +1,34 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#93c5fd","primaryTextColor":"#374151","primaryBorderColor":"#1e3a5f","secondaryColor":"#fef3c7","secondaryTextColor":"#374151","secondaryBorderColor":"#b45309","tertiaryColor":"#a7f3d0","tertiaryTextColor":"#374151","tertiaryBorderColor":"#047857","lineColor":"#1e3a5f","fontFamily":"monospace"}}}%%
+graph LR
+    A([discover_products pages query delay cache]) --> B{search:query:page<br/>fresh in RowCache?}
+    B -->|yes| C[Reuse cached cards<br/>no HTTP and no delay]
+    B -->|no| D[Build /search URL<br/>q=laptop and page=N]
+    D --> E[fetch URL<br/>thread-local requests.Session<br/>30 second timeout]
+    E --> F{Response result}
+    F -->|200 and body >= 10KB| G[parse_search_page]
+    F -->|403 or 429| H[Read Retry-After<br/>else wait 15s then 30s]
+    H -->|attempts remain| E
+    H -->|3 attempts exhausted| I([RateLimitError<br/>stop discovery])
+    F -->|other error| J[Wait 1.5s then 3s]
+    J -->|attempts remain| E
+    J -->|exhausted| K[Log failed page<br/>continue next page]
+    G --> L[Extract id, canonical URL,<br/>title, status, card text]
+    L --> M[(Save search cards<br/>atomic JSON replacement)]
+    C --> N[Deduplicate by id or URL]
+    M --> N
+    N --> O{Cards empty?}
+    O -->|yes| P([Stop: end of results])
+    O -->|no| Q[Wait 0.8s if freshly fetched<br/>then continue page loop]
+
+    classDef trigger fill:#fed7aa,stroke:#c2410c,color:#374151,stroke-width:2px;
+    classDef process fill:#93c5fd,stroke:#1e3a5f,color:#374151,stroke-width:2px;
+    classDef decision fill:#fef3c7,stroke:#b45309,color:#374151,stroke-width:2px;
+    classDef success fill:#a7f3d0,stroke:#047857,color:#374151,stroke-width:2px;
+    classDef error fill:#fecaca,stroke:#b91c1c,color:#374151,stroke-width:2px;
+    classDef data fill:#ddd6fe,stroke:#6d28d9,color:#374151,stroke-width:2px;
+    class A trigger;
+    class B,F,O decision;
+    class C,D,E,G,H,J,K,L,N,Q process;
+    class M data;
+    class P success;
+    class I error;

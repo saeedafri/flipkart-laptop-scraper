@@ -1,0 +1,31 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#93c5fd","primaryTextColor":"#374151","primaryBorderColor":"#1e3a5f","secondaryColor":"#ddd6fe","secondaryTextColor":"#374151","secondaryBorderColor":"#6d28d9","tertiaryColor":"#a7f3d0","tertiaryTextColor":"#374151","tertiaryBorderColor":"#047857","lineColor":"#1e3a5f","fontFamily":"monospace"}}}%%
+graph LR
+    CARD([Product card<br/>URL + title + status + text]) --> CACHE{Complete 19-field row<br/>fresh in cache?}
+    CACHE -->|yes| ORDER[Return row to<br/>original index]
+    CACHE -->|no| POOL[ThreadPoolExecutor<br/>default 6 workers]
+    POOL --> FETCH[Worker-local session<br/>fetch product URL]
+    FETCH -->|failure| FALLBACK[Build minimal HTML<br/>from listing card]
+    FETCH -->|success| HTML[Full product HTML]
+    HTML --> STATE[extract_initial_state<br/>window.__INITIAL_STATE__]
+    STATE --> SCHEMA[find_product_schema<br/>name, brand, offers,<br/>rating, reviews, availability]
+    STATE --> SPECS[extract_specs<br/>select widget with most<br/>recognized laptop labels]
+    STATE --> PRICE[get_price_data<br/>finalPrice, fsp, MRP]
+    HTML --> TEXT[Visible page text and title<br/>fallback evidence]
+    SCHEMA --> PARSE[parse_product_page]
+    SPECS --> PARSE
+    PRICE --> PARSE
+    TEXT --> PARSE
+    FALLBACK --> PARSE
+    PARSE --> NORMALIZE[Clean and normalize<br/>all 19 fields in COLUMNS order]
+    NORMALIZE --> ORDER
+    ORDER --> SAVE[(Cache successful detail rows<br/>save every 10 and at end)]
+
+    classDef trigger fill:#fed7aa,stroke:#c2410c,color:#374151,stroke-width:2px;
+    classDef process fill:#93c5fd,stroke:#1e3a5f,color:#374151,stroke-width:2px;
+    classDef decision fill:#fef3c7,stroke:#b45309,color:#374151,stroke-width:2px;
+    classDef data fill:#ddd6fe,stroke:#6d28d9,color:#374151,stroke-width:2px;
+    classDef success fill:#a7f3d0,stroke:#047857,color:#374151,stroke-width:2px;
+    class CARD trigger;
+    class CACHE decision;
+    class POOL,FETCH,FALLBACK,HTML,STATE,PARSE,NORMALIZE,ORDER process;
+    class SCHEMA,SPECS,PRICE,TEXT,SAVE data;

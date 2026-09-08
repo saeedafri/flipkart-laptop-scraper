@@ -1,0 +1,75 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#3b82f6","primaryTextColor":"#ffffff","primaryBorderColor":"#1e3a5f","secondaryColor":"#fed7aa","secondaryTextColor":"#374151","secondaryBorderColor":"#c2410c","tertiaryColor":"#a7f3d0","tertiaryTextColor":"#374151","tertiaryBorderColor":"#047857","lineColor":"#1e3a5f","fontFamily":"monospace"}}}%%
+graph TD
+    START([python3 flipkart_laptop_scraper_exact.py]) --> ENTRY[Entry point imports core.main<br/>and calls SystemExit main]
+    ENTRY --> ARGS[parse_args<br/>pages=50, query=laptop, workers=6<br/>delay=0.8s, cache=1h]
+    ARGS --> CACHE[(RowCache loads<br/>.flipkart_laptop_cache.json)]
+
+    subgraph DISCOVERY[1. SEARCH DISCOVERY - sequential pages]
+        PAGE{Recent search:laptop:page<br/>cache entry?}
+        SEARCH[fetch Flipkart /search<br/>timeout=30s, up to 3 attempts]
+        RETRY{HTTP result?}
+        COOL[403/429 cooldown<br/>Retry-After or 15s then 30s]
+        CARDS[parse_search_page<br/>id, canonical URL, title,<br/>listing status, card text]
+        DEDUPE[Deduplicate by<br/>data-id or canonical URL]
+        PAGE -->|yes| CARDS
+        PAGE -->|no| SEARCH
+        SEARCH --> RETRY
+        RETRY -->|200 and HTML > 10KB| CARDS
+        RETRY -->|403 or 429| COOL
+        COOL -->|retry| SEARCH
+        RETRY -->|persistent block| STOP([RateLimitError<br/>stop page loop safely])
+        CARDS --> DEDUPE
+    end
+
+    CACHE --> PAGE
+    DEDUPE --> DETAILS
+
+    subgraph PRODUCT[2. PRODUCT DETAILS - parallel fan-out]
+        DETAILS{Complete recent row<br/>cached by product URL?}
+        POOL[ThreadPoolExecutor<br/>6 workers by default]
+        FETCHP[Each worker: fetch product page<br/>using its own requests.Session]
+        PARSE[parse_product_page]
+        FALLBACK[Detail failure fallback<br/>parse listing title, text, status]
+        DETAILS -->|yes| ORDER[Place cached row at<br/>original product index]
+        DETAILS -->|no| POOL
+        POOL --> FETCHP
+        FETCHP -->|success| PARSE
+        FETCHP -->|failure| FALLBACK
+        PARSE --> ORDER
+        FALLBACK --> ORDER
+    end
+
+    subgraph TRANSFORM[3. STRUCTURED EXTRACTION AND TRANSFORMATION]
+        STATE[extract_initial_state<br/>window.__INITIAL_STATE__ JSON]
+        SOURCES[Three trusted sources<br/>Product schema + specification widget<br/>+ price tracking data]
+        CLEAN[Normalize 19 columns<br/>name, brand, type, price, discount, MRP,<br/>rating, reviews, CPU, RAM, storage/type,<br/>graphics, display, GPU, availability,<br/>touchscreen, OS, laptop use]
+        PARSE --> STATE --> SOURCES --> CLEAN
+        FALLBACK --> CLEAN
+    end
+
+    ORDER --> VALIDATE
+    CLEAN --> ORDER
+
+    subgraph LOAD[4. QUALITY GATE AND LOAD]
+        VALIDATE{validate_rows<br/>rows exist, exact 19-column order,<br/>allowed availability values}
+        FRAME[pandas DataFrame<br/>drop fully identical rows]
+        EXCEL[openpyxl writes Laptops sheet<br/>real header row, no index, filters,<br/>freeze A2, widths and number formats]
+        OUTPUT([output/flipkart_laptops.xlsx])
+        SAVE[(Cache search pages and<br/>successful rows atomically)]
+        VALIDATE -->|pass| FRAME --> EXCEL --> OUTPUT
+        VALIDATE -->|fail| FAIL([Raise RuntimeError<br/>do not write workbook])
+        ORDER --> SAVE
+    end
+
+    classDef trigger fill:#fed7aa,stroke:#c2410c,color:#374151,stroke-width:2px;
+    classDef process fill:#93c5fd,stroke:#1e3a5f,color:#374151,stroke-width:2px;
+    classDef decision fill:#fef3c7,stroke:#b45309,color:#374151,stroke-width:2px;
+    classDef success fill:#a7f3d0,stroke:#047857,color:#374151,stroke-width:2px;
+    classDef error fill:#fecaca,stroke:#b91c1c,color:#374151,stroke-width:2px;
+    classDef data fill:#ddd6fe,stroke:#6d28d9,color:#374151,stroke-width:2px;
+    class START trigger;
+    class ENTRY,ARGS,SEARCH,COOL,CARDS,DEDUPE,POOL,FETCHP,PARSE,FALLBACK,ORDER,CLEAN,FRAME,EXCEL process;
+    class PAGE,RETRY,DETAILS,VALIDATE decision;
+    class OUTPUT success;
+    class STOP,FAIL error;
+    class CACHE,STATE,SOURCES,SAVE data;

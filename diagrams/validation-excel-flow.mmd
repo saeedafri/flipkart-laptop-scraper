@@ -1,0 +1,25 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#93c5fd","primaryTextColor":"#374151","primaryBorderColor":"#1e3a5f","secondaryColor":"#fef3c7","secondaryTextColor":"#374151","secondaryBorderColor":"#b45309","tertiaryColor":"#a7f3d0","tertiaryTextColor":"#374151","tertiaryBorderColor":"#047857","lineColor":"#1e3a5f","fontFamily":"monospace"}}}%%
+graph LR
+    ROWS([Ordered parsed rows]) --> A{At least one row?}
+    A -->|no| ERR1([RuntimeError<br/>workbook not written])
+    A -->|yes| B{Every dictionary key exactly<br/>matches COLUMNS order?}
+    B -->|no| ERR2([RuntimeError<br/>19-column contract failed])
+    B -->|yes| C{Availability belongs to<br/>allowed status set?}
+    C -->|no| ERR3([RuntimeError<br/>invalid availability])
+    C -->|yes| DF[pandas DataFrame<br/>explicit columns=COLUMNS]
+    DF --> DUP[drop_duplicates<br/>remove only fully identical rows]
+    DUP --> WRITE[to_excel sheet=Laptops<br/>index=False, header=True]
+    WRITE --> STYLE[openpyxl formatting<br/>freeze A2 + filters + widths<br/>wrapped cells + rupee/rating formats]
+    STYLE --> FILE([output/flipkart_laptops.xlsx])
+    FILE --> VERIFY[Workbook contract<br/>row 1 = 19 headers<br/>rows 2+ = products]
+
+    classDef trigger fill:#fed7aa,stroke:#c2410c,color:#374151,stroke-width:2px;
+    classDef process fill:#93c5fd,stroke:#1e3a5f,color:#374151,stroke-width:2px;
+    classDef decision fill:#fef3c7,stroke:#b45309,color:#374151,stroke-width:2px;
+    classDef success fill:#a7f3d0,stroke:#047857,color:#374151,stroke-width:2px;
+    classDef error fill:#fecaca,stroke:#b91c1c,color:#374151,stroke-width:2px;
+    class ROWS trigger;
+    class A,B,C decision;
+    class DF,DUP,WRITE,STYLE,VERIFY process;
+    class FILE success;
+    class ERR1,ERR2,ERR3 error;

@@ -7,3 +7,4 @@ __pycache__/
 .flipkart_laptop_cache.json
 output/*.xlsx
 output/*.csv
+.gstack/
